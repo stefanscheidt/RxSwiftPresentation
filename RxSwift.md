@@ -1,10 +1,12 @@
+autoscale: true
+
 # RxSwift
 
 # RxCocoa
 
 ---
 
-## Asynchronous Programming<br>with Observable Streams<br>for Cocoa
+## Asynchronous Programming<br>with Observable Streams<br>for Swift and Cocoa
 
 ---
 
@@ -27,7 +29,7 @@
 *   Usage via CocoaPods, Carthage, Git Submodules
 *   [Community Extentions](https://github.com/RxSwiftCommunity)
 
-^ The main contributor works for Rhapsody Napster.
+^ The main contributor, [Krunoslav Zaher](https://github.com/kzaher), works for Rhapsody Napster.
 
 ---
 
@@ -46,18 +48,6 @@
 
 ---
 
-# Sequence generation
-
-When an observable is created, it doesn't perform any work simply because it has been created
-
-**Sequence generation starts when the subscribe method is called**
-
-**Every subscriber upon subscription usually generates it's own separate sequence of elements**
-
-But see also [Hot and Cold Observables](https://github.com/ReactiveX/RxSwift/blob/master/Documentation/HotAndColdObservables.md)
-
----
-
 # Events
 
 `next* (error | completed)?`
@@ -67,29 +57,36 @@ But see also [Hot and Cold Observables](https://github.com/ReactiveX/RxSwift/blo
 
 ---
 
-# Disposing
-
-TBD
-
-see <https://github.com/ReactiveX/RxSwift/blob/master/Documentation/GettingStarted.md#disposing>
-
----
-
 # Examples (RxSwift 2.6.0)
 
 ```swift
+Observable.of(1, 2, 3)
+    .subscribe { event in
+        print(event)
+    }
+```
+
+will print
+
+```
+Next(1)
+Next(2)
+Next(3)
+Completed
+```
+
+---
+
+# Disposing
+
+release all allocated resources:
+
+```swift
 let disposeBag = DisposeBag()
-Observable.just(42)
+Observable.of(1, 2 ,3)
     .subscribe { event in
         print(event)
     }.addDisposableTo(disposeBag)
-```
-
-will output
-
-```
-Next(42)
-Completed
 ```
 
 ---
@@ -105,7 +102,77 @@ Completed
 
 ---
 
+## Rx Marbles
+
+<http://rxmarbles.com/>
+
+<https://github.com/RxSwiftCommunity/RxMarbles>
+
+---
+
 # More Examples
+
+---
+
+# Sequence generation
+
+When does an Observable begin emitting its items?<br>It depends ...
+
+"Hot" Observable:<br>may begin emitting items as soon as created
+
+"Cold" Observabls:<br>waits until an observer subscribes before it begins to emit
+
+See also [Hot and Cold Observables](https://github.com/ReactiveX/RxSwift/blob/master/Documentation/HotAndColdObservables.md)
+
+---
+
+# Cold Observables
+
+```swift
+let disposeBag = DisposeBag()
+let observable = Observable.of(1, 2)
+observable
+    .subscribe { print($0) }
+    .addDisposableTo(disposeBag)
+observable
+    .subscribe { print($0)}
+    .addDisposableTo(disposeBag)
+```
+
+will print
+
+```
+Next(1)
+Next(2)
+Completed
+Next(1)
+Next(2)
+Completed
+```
+
+---
+
+# "Hot" Observables
+
+```swift
+let pub = PublishSubject<String>()
+pub.onNext("one")
+let sub1 = pub.subscribe { print("1: \($0)") }
+pub.onNext("two")
+let sub2 = pub.subscribe { print("2: \($0)") }
+pub.onNext("three")
+sub2.dispose()
+pub.onCompleted()
+```
+
+will print
+
+```
+1: Next(two)
+1: Next(three)
+2: Next(three)
+1: Completed
+```
 
 ---
 
@@ -125,7 +192,27 @@ TBD
 
 # Debugging
 
-TBD
+```swift
+let subscription = Observable<Int>.interval(0.3, scheduler: scheduler)
+    .debug("debugging ...")
+    .map { "Simply \($0)"}
+    .subscribeNext { print($0) }
+NSThread.sleepForTimeInterval(1.0)
+subscription.dispose()
+```
+
+will print
+
+```
+2016-09-09 16:42:29.871: debugging ... -> subscribed
+2016-09-09 16:42:30.172: debugging ... -> Event Next(0)
+Simply 0
+2016-09-09 16:42:30.475: debugging ... -> Event Next(1)
+Simply 1
+2016-09-09 16:42:30.775: debugging ... -> Event Next(2)
+Simply 2
+2016-09-09 16:42:30.873: debugging ... -> disposed
+```
 
 ---
 
