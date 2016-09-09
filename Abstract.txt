@@ -1,0 +1,5 @@
+Einführung in RxSwift
+
+In diesem Talk möchte ich (@stefanscheidt) euch die Grundlagen asynchroner Programmierung mit Observable Streams am Beispiel von RxSwift vorstellen. Wie erzeugt man einen Observable Stream, wie registriert man Subscriber und wie transformiert man Streams mit Hilfe von Operators? Anschließend zeige ich einige einfache Beispiele für die Anbindung an UIKit Komponenten.
+
+ACHTUNG: Dieses Treffen der CocoaHeads findet diesmal bei REWE digital auf dem Carlswerkgelände in der Schanzenstraße in Köln Mühlheim statt! Die Adresse lautet "Gebäude Kupferwerk 2.15, 1. Etage, Schanzenstraße 6-20, 51063 Köln". Eine Anfahrtsbeschreibung findet ihr hier: https://rewe-digital.com/kontakt-anfahrt.html. Wenn ihr mit öffentlichen Verkehrsmitteln kommt, ist die nächste Station die Haltestelle "Keupstraße" der Linie 4. Wenn ihr mit dem Auto kommt, gibt es einen gebührenpflichtigen Parkplatz gegenüber vom Haupteingang des Carlswerk (Schanzenstraße 6-20), oder ihr versucht euer Glück bei den freien Parkplätzen in der Carlswerkstraße in der Nähe des "Hintereingangs" Carlswerkstraße 1 zum Carlswerkgelände.
