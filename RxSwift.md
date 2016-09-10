@@ -306,11 +306,35 @@ Disposed
 
 ---
 
-# Schedulers
+# Schedulers[^1]
 
-TBD
+Schedulers abstract away the mechanism for performing work
 
-see <https://github.com/ReactiveX/RxSwift/blob/master/Documentation/Schedulers.md>
+Buildin:
+
+*   `CurrentThreadScheduler`: serial on current thread
+*   `MainScheduler`: serial on main thread
+*   `SerialDispatchQueueScheduler`: serial on dispatch queue
+*   `ConcurrentDispatchQueueScheduler`: concurrent on dispatch queue
+*   `OperationQueueScheduler`: concurrent on operation queue
+
+[^1]: <https://github.com/ReactiveX/RxSwift/blob/master/Documentation/Schedulers.md>
+
+---
+
+# Observe on Scheduler
+
+```swift
+sequence
+    .observeOn(backgroundScheduler)
+    .map { n in
+        print("This is performed on backgroundScheduler")
+    }
+    .observeOn(MainScheduler.instance)
+    .map { n in
+        print("This is performed on the main thread")
+    }
+```
 
 ---
 
