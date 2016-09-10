@@ -112,6 +112,8 @@ Observable.of(1, 2 ,3)
 
 # More Examples
 
+TBD
+
 ---
 
 # Sequence generation
@@ -155,23 +157,151 @@ Completed
 # "Hot" Observables
 
 ```swift
-let pub = PublishSubject<String>()
-pub.onNext("one")
-let sub1 = pub.subscribe { print("1: \($0)") }
-pub.onNext("two")
-let sub2 = pub.subscribe { print("2: \($0)") }
-pub.onNext("three")
-sub2.dispose()
-pub.onCompleted()
+ let pub = PublishSubject<Int>()
+ pub.onNext(1)
+ let sub1 = pub.subscribe { print("sub1: \($0)") }
+ pub.onNext(2)
+ let sub2 = pub.subscribe { print("sub2: \($0)") }
+ pub.onNext(3)
+ sub2.dispose()
+ pub.onCompleted()
 ```
 
 will print
 
 ```
-1: Next(two)
-1: Next(three)
-2: Next(three)
-1: Completed
+sub1: Next(2)
+sub1: Next(3)
+sub2: Next(3)
+sub1: Completed
+```
+
+---
+
+# Create Observables
+
+```swift
+func pulse(interval: NSTimeInterval) -> Observable<Int> {
+    return Observable.create { observer in
+        print("Subscribed")
+
+        let queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0)
+        let timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue)
+        dispatch_source_set_timer(timer, 0, UInt64(interval * Double(NSEC_PER_SEC)), 0)
+
+        let cancel = AnonymousDisposable {
+            print("Disposed")
+            dispatch_source_cancel(timer)
+        }
+
+        var next = 0
+        dispatch_source_set_event_handler(timer, {
+            if cancel.disposed { return }
+            observer.onNext(next)
+            next += 1
+        })
+        dispatch_resume(timer)
+
+        return cancel
+    }
+}
+```
+
+---
+
+# Create Observables
+
+```swift
+let subscription = pulse(0.5)
+    .subscribeNext { print($0) }
+NSThread.sleepForTimeInterval(2.0)
+subscription.dispose()
+```
+
+will print
+
+```
+Subscribed
+0
+1
+2
+3
+Disposed
+```
+
+---
+
+# Cold Observables - again
+
+```swift
+ let counter = pulse(0.1)
+ let sub1 = counter.subscribeNext { print("Sub1:  \($0)") }
+ let sub2 = counter.subscribeNext { print("Sub2:  \($0)") }
+
+ NSThread.sleepForTimeInterval(0.3)
+ sub1.dispose()
+
+ NSThread.sleepForTimeInterval(0.3)
+ sub2.dispose()
+```
+
+will print ...
+
+---
+
+# Cold Observables - again
+
+```
+Subscribed
+Sub1:  0
+Subscribed
+Sub2:  0
+Sub1:  1
+Sub2:  1
+Sub1:  2
+Sub2:  2
+Disposed
+Sub2:  3
+Sub2:  4
+Sub2:  5
+Disposed
+```
+
+---
+
+# Share Replay
+
+```swift
+ let counter = pulse(0.1).shareReplay(1)
+ let sub1 = counter.subscribeNext { print("Sub1:  \($0)") }
+ let sub2 = counter.subscribeNext { print("Sub2:  \($0)") }
+
+ NSThread.sleepForTimeInterval(0.3)
+ sub1.dispose()
+
+ NSThread.sleepForTimeInterval(0.3)
+ sub2.dispose()
+```
+
+will print ...
+
+---
+
+# Share Replay
+
+```
+Subscribed
+Sub1:  0
+Sub2:  0
+Sub1:  1
+Sub2:  1
+Sub1:  2
+Sub2:  2
+Sub2:  3
+Sub2:  4
+Sub2:  5
+Sub2:  6
+Disposed
 ```
 
 ---
