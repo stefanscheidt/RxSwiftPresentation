@@ -118,13 +118,13 @@ TBD
 
 # Sequence generation
 
-When does an Observable begin emitting its items?<br>It depends ...
+When does an Observable begin emitting its items?
 
-"Hot" Observable:<br>may begin emitting items as soon as created
+"Cold" Observabls[^1]:<br>waits until an observer subscribes
 
-"Cold" Observabls:<br>waits until an observer subscribes before it begins to emit
+"Hot" Observable[^1]:<br>may begin emitting items as soon as created
 
-See also [Hot and Cold Observables](https://github.com/ReactiveX/RxSwift/blob/master/Documentation/HotAndColdObservables.md)
+[^1]: See also [Hot and Cold Observables](https://github.com/ReactiveX/RxSwift/blob/master/Documentation/HotAndColdObservables.md)
 
 ---
 
@@ -308,9 +308,7 @@ Disposed
 
 # Schedulers[^1]
 
-Schedulers abstract away the mechanism for performing work
-
-Buildin:
+**Schedulers abstract away the mechanism for performing work**
 
 *   `CurrentThreadScheduler`: serial on current thread
 *   `MainScheduler`: serial on main thread
@@ -376,13 +374,48 @@ Simply 2
 
 # Units
 
-TBD
+**Important properties when writing Cocoa/UIKit applications:**
+
+*   Subscribe on main scheduler (properties, events)
+*   Observe on main thread
+*   Share events
+*   Don't error out
 
 ---
 
 # Units
 
-Examples
+Units[^1] are convenient wrapper around observables for writing UI code
+
+*   `ControlProperty`
+*   `ControlEvent`
+*   `Driver`
+
+[^1]: <https://github.com/ReactiveX/RxSwift/blob/master/Documentation/Units.md>
+
+---
+
+# Units
+
+```swift
+let results = query.rx_text
+    .throttle(0.3, scheduler: MainScheduler.instance)
+    .flatMapLatest { fetchAutoCompleteItems($0) }
+
+results.map { "\($0.count)" }
+    .bindTo(resultCount.rx_text)
+    .addDisposableTo(disposeBag)
+
+results.bindTo(resultsTableView.rx_itemsWithCellIdentifier("Cell")) { (_, result, cell) in
+        cell.textLabel?.text = "\(result)"
+    }.addDisposableTo(disposeBag)
+```
+
+---
+
+# Examples
+
+TBD
 
 ---
 
