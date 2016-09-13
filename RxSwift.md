@@ -6,6 +6,16 @@ autoscale: true
 
 ---
 
+# About me
+
+[@stefanscheidt](https://twitter.com/stefanscheidt)
+
+Software Engineer @ [REWE digital](https://rewe-digital.com/)
+
+mostly Java, some JavaScript, iOS & Swift Newbie
+
+---
+
 ## Asynchronous Programming<br>with Observable Streams<br>for Swift and Cocoa
 
 ---
@@ -33,7 +43,7 @@ autoscale: true
 
 ---
 
-# Basic Concepts (RxSwift)
+# Basic Concepts
 
 ---
 
@@ -57,7 +67,7 @@ autoscale: true
 
 ---
 
-# Examples (RxSwift 2.6.0)
+# Examples[^2]
 
 ```swift
 Observable.of(1, 2, 3)
@@ -75,6 +85,8 @@ Next(3)
 Completed
 ```
 
+[^2]: using RxSwift 2.6
+
 ---
 
 # Disposing
@@ -91,14 +103,14 @@ Observable.of(1, 2 ,3)
 
 ---
 
-# Operators [^1]
+# Operators [^3]
 
 *   Creating Observables
 *   Transforming Observables
 *   Filtering Observables
 *   Combining Observables
 
-[^1]: <https://github.com/ReactiveX/RxSwift/blob/master/Documentation/API.md>
+[^3]: <https://github.com/ReactiveX/RxSwift/blob/master/Documentation/API.md>
 
 ---
 
@@ -110,21 +122,15 @@ Observable.of(1, 2 ,3)
 
 ---
 
-# More Examples
+# Sequence Generation
 
-TBD
+When does an Observable begin emitting its items?[^4]
 
----
+"Cold" Observable:<br>waits until an observer subscribes
 
-# Sequence generation
+"Hot" Observable:<br>may begin emitting items as soon as created
 
-When does an Observable begin emitting its items?
-
-"Cold" Observabls[^1]:<br>waits until an observer subscribes
-
-"Hot" Observable[^1]:<br>may begin emitting items as soon as created
-
-[^1]: See also [Hot and Cold Observables](https://github.com/ReactiveX/RxSwift/blob/master/Documentation/HotAndColdObservables.md)
+[^4]: See also [Hot and Cold Observables](https://github.com/ReactiveX/RxSwift/blob/master/Documentation/HotAndColdObservables.md)
 
 ---
 
@@ -189,19 +195,17 @@ func pulse(interval: NSTimeInterval) -> Observable<Int> {
         let timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue)
         dispatch_source_set_timer(timer, 0, UInt64(interval * Double(NSEC_PER_SEC)), 0)
 
+        var next = 0
         let cancel = AnonymousDisposable {
             print("Disposed")
             dispatch_source_cancel(timer)
         }
-
-        var next = 0
         dispatch_source_set_event_handler(timer, {
             if cancel.disposed { return }
             observer.onNext(next)
             next += 1
         })
         dispatch_resume(timer)
-
         return cancel
     }
 }
@@ -306,7 +310,7 @@ Disposed
 
 ---
 
-# Schedulers[^1]
+# Schedulers[^5]
 
 **Schedulers abstract away the mechanism for performing work**
 
@@ -316,7 +320,7 @@ Disposed
 *   `ConcurrentDispatchQueueScheduler`: concurrent on dispatch queue
 *   `OperationQueueScheduler`: concurrent on operation queue
 
-[^1]: <https://github.com/ReactiveX/RxSwift/blob/master/Documentation/Schedulers.md>
+[^5]: <https://github.com/ReactiveX/RxSwift/blob/master/Documentation/Schedulers.md>
 
 ---
 
@@ -333,6 +337,12 @@ sequence
         print("This is performed on the main thread")
     }
 ```
+
+---
+
+# Examples
+
+See [Rx.playground](https://github.com/ReactiveX/RxSwift/tree/master/Rx.playground)
 
 ---
 
@@ -385,28 +395,77 @@ Simply 2
 
 # Units
 
-Units[^1] are convenient wrapper around observables for writing UI code
+Units[^6] are convenient wrapper around observables for writing UI code
 
 *   `ControlProperty`
 *   `ControlEvent`
 *   `Driver`
 
-[^1]: <https://github.com/ReactiveX/RxSwift/blob/master/Documentation/Units.md>
+[^6]: <https://github.com/ReactiveX/RxSwift/blob/master/Documentation/Units.md>
 
 ---
 
-# Units
+# Why Units?
 
 ```swift
 let results = query.rx_text
     .throttle(0.3, scheduler: MainScheduler.instance)
-    .flatMapLatest { fetchAutoCompleteItems($0) }
+    .flatMapLatest { fetchItems($0) }
 
 results.map { "\($0.count)" }
     .bindTo(resultCount.rx_text)
     .addDisposableTo(disposeBag)
 
-results.bindTo(resultsTableView.rx_itemsWithCellIdentifier("Cell")) { (_, result, cell) in
+results.bindTo(tableView.rx_itemsWithCellIdentifier("Cell")) { (_, result, cell) in
+        cell.textLabel?.text = "\(result)"
+    }.addDisposableTo(disposeBag)
+```
+
+---
+
+# Problems with this code ...
+
+*   If `fetchItems` errors out, everything would unbind
+*   If it returns on some background thread, results would be bound to UI there
+*   Results are bound to two UI elements, so two HTTP requests would be made
+
+---
+
+# So ...
+
+```swift
+let results = query.rx.text
+    .throttle(0.3, scheduler: MainScheduler.instance)
+    .flatMapLatest { fetchItems($0)
+        .observeOn(MainScheduler.instance)
+        .catchErrorJustReturn([])
+    }.shareReplay(1)
+
+results.map { "\($0.count)" }
+    .bindTo(resultCount.rx.text)
+    .addDisposableTo(disposeBag)
+
+results.bindTo(tableView.rx.itemsWithCellIdentifier("Cell")) { (_, result, cell) in
+        cell.textLabel?.text = "\(result)"
+    }.addDisposableTo(disposeBag)
+```
+
+---
+
+# Driver
+
+```swift
+let results = query.rx.text.asDriver()
+    .throttle(0.3, scheduler: MainScheduler.instance)
+    .flatMapLatest { fetchItems($0)
+        .asDriver(onErrorJustReturn: [])
+    }
+
+results.map { "\($0.count)" }
+    .drive(resultCount.rx.text)
+    .addDisposableTo(disposeBag)
+
+results.drive(tableView.rx.itemsWithCellIdentifier("Cell")) { (_, result, cell) in
         cell.textLabel?.text = "\(result)"
     }.addDisposableTo(disposeBag)
 ```
@@ -415,10 +474,24 @@ results.bindTo(resultsTableView.rx_itemsWithCellIdentifier("Cell")) { (_, result
 
 # Examples
 
-TBD
+See [RxExample](https://github.com/ReactiveX/RxSwift/tree/master/RxExample)
+
+---
+
+# What's new in RxSwift 3.0?
+
+See [the changelog](https://github.com/ReactiveX/RxSwift/blob/master/CHANGELOG.md).
 
 ---
 
 # By the way ...
 
-Observable Sequences are Monads
+Observable Sequences are Monads[^7]
+
+[^7]: [Swift Functors, Applicatives, and Monads in Pictures](http://www.mokacoding.com/blog/functor-applicative-monads-in-pictures/)
+
+---
+
+# Thank you![^8]
+
+[^8]: Slidedeck Sources on [GitHub](https://github.com/stefanscheidt/RxSwiftPresentation)
