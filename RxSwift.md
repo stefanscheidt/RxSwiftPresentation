@@ -25,14 +25,14 @@ mostly Java, some JavaScript, iOS & Swift Newbie
 *   2009: Rx.NET
 *   2010: RxJS
 *   2012: RxJava, RxCpp, RxRuby
-*   2013: RxScala, RxClojure, RxGroovy, RxJRuby, RxPY, RxPHP, RxKotlin, ReactiveCocoa
+*   2013: RxScala, RxClojure, RxKotlin, RxPY ... (ReactiveCocoa)
 *   2015: RxSwift
 
 ---
 
 # RxSwift Fact Sheet
 
-*   Swift Support: 2.3, 3.0 (Alpha)
+*   Swift Support: 2.3, 3.0 (Beta)
 *   Code Quality: see [CocoaPods](https://cocoapods.org/pods/RxSwift/quality)
 *   Contributors & Activity: see [GitHub](https://github.com/ReactiveX/RxSwift/graphs/contributors)
 *   External Dependencies: Non
@@ -49,10 +49,11 @@ mostly Java, some JavaScript, iOS & Swift Newbie
 
 # Observable Sequences:<br>Push vs. Pull [^1]
 
-*   `Obeservable<Element>` eq. `SequenceType`
-*   `ObservableType.subscribe` eq. `SequenceType.generate`
-*   `observable.subscribe(observer)` vs. `generator.next`
-*   But an observable can also receive elements asynchronously
+*   `Observable<Element>` eq. `SequenceType`
+*   `ObservableType.subscribe`
+    -   eq. `SequenceType.generate`
+    -   vs. `generator.next`
+*   But can also receive elements asynchronously!
 
 [^1]: [RxSwift Getting Started](https://github.com/ReactiveX/RxSwift/blob/master/Documentation/GettingStarted.md#observables-aka-sequences)
 
@@ -71,21 +72,19 @@ mostly Java, some JavaScript, iOS & Swift Newbie
 
 ```swift
 Observable.of(1, 2, 3)
-    .subscribe { event in
-        print(event)
-    }
+    .subscribe { print($0) }
 ```
 
 will print
 
 ```
-Next(1)
-Next(2)
-Next(3)
-Completed
+next(1)
+next(2)
+next(3)
+completed
 ```
 
-[^2]: using RxSwift 2.6
+[^2]: using RxSwift 3.0.0-beta.1
 
 ---
 
@@ -94,21 +93,28 @@ Completed
 release all allocated resources:
 
 ```swift
+Observable.of(1, 2 ,3)
+    .subscribe { print($0) }
+    .dispose()
+```
+
+or better
+
+```swift
 let disposeBag = DisposeBag()
 Observable.of(1, 2 ,3)
-    .subscribe { event in
-        print(event)
-    }.addDisposableTo(disposeBag)
+    .subscribe { print($0) }
+    .addDisposableTo(disposeBag)
 ```
 
 ---
 
 # Operators [^3]
 
-*   Creating Observables
-*   Transforming Observables
-*   Filtering Observables
-*   Combining Observables
+*   Creating
+*   Transforming
+*   Filtering
+*   Combining
 
 [^3]: <https://github.com/ReactiveX/RxSwift/blob/master/Documentation/API.md>
 
@@ -124,7 +130,7 @@ Observable.of(1, 2 ,3)
 
 # Sequence Generation
 
-When does an Observable begin emitting its items?[^4]
+*When does an Observable begin emitting its items?*[^4]
 
 "Cold" Observable:<br>waits until an observer subscribes
 
@@ -139,23 +145,19 @@ When does an Observable begin emitting its items?[^4]
 ```swift
 let disposeBag = DisposeBag()
 let observable = Observable.of(1, 2)
-observable
-    .subscribe { print($0) }
-    .addDisposableTo(disposeBag)
-observable
-    .subscribe { print($0)}
-    .addDisposableTo(disposeBag)
+observable.subscribe { print($0) }.addDisposableTo(disposeBag)
+observable.subscribe { print($0) }.addDisposableTo(disposeBag)
 ```
 
 will print
 
 ```
-Next(1)
-Next(2)
-Completed
-Next(1)
-Next(2)
-Completed
+next(1)
+next(2)
+completed
+next(1)
+next(2)
+completed
 ```
 
 ---
@@ -176,10 +178,10 @@ Completed
 will print
 
 ```
-sub1: Next(2)
-sub1: Next(3)
-sub2: Next(3)
-sub1: Completed
+sub1: next(2)
+sub1: next(3)
+sub2: next(3)
+sub1: completed
 ```
 
 ---
@@ -187,25 +189,24 @@ sub1: Completed
 # Create Observables
 
 ```swift
-func pulse(interval: NSTimeInterval) -> Observable<Int> {
+func interval(_ interval: TimeInterval) -> Observable<Int> {
     return Observable.create { observer in
         print("Subscribed")
-
-        let queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0)
-        let timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue)
-        dispatch_source_set_timer(timer, 0, UInt64(interval * Double(NSEC_PER_SEC)), 0)
-
-        var next = 0
-        let cancel = AnonymousDisposable {
+        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global())
+        timer.scheduleRepeating(deadline: DispatchTime.now() + interval, interval: interval)
+        let cancel = Disposables.create {
             print("Disposed")
-            dispatch_source_cancel(timer)
+            timer.cancel()
         }
-        dispatch_source_set_event_handler(timer, {
-            if cancel.disposed { return }
-            observer.onNext(next)
-            next += 1
-        })
-        dispatch_resume(timer)
+
+        var count = 0
+        timer.setEventHandler {
+            if cancel.isDisposed { return }
+            observer.on(.next(count))
+            count += 1
+        }
+        timer.resume()
+
         return cancel
     }
 }
@@ -216,10 +217,9 @@ func pulse(interval: NSTimeInterval) -> Observable<Int> {
 # Create Observables
 
 ```swift
-let subscription = pulse(0.5)
-    .subscribeNext { print($0) }
-NSThread.sleepForTimeInterval(2.0)
-subscription.dispose()
+let counter = interval(0.5).subscribe { print($0) }
+Thread.sleep(forTimeInterval: 2.0)
+counter.dispose()
 ```
 
 will print
@@ -238,15 +238,13 @@ Disposed
 # Cold Observables - again
 
 ```swift
- let counter = pulse(0.1)
- let sub1 = counter.subscribeNext { print("Sub1:  \($0)") }
- let sub2 = counter.subscribeNext { print("Sub2:  \($0)") }
-
- NSThread.sleepForTimeInterval(0.3)
- sub1.dispose()
-
- NSThread.sleepForTimeInterval(0.3)
- sub2.dispose()
+let counter = interval(0.1)
+let sub1 = counter.subscribe(onNext: { print("Sub1:  \($0)") })
+let sub2 = counter.subscribe(onNext: { print("Sub2:  \($0)") })
+Thread.sleep(forTimeInterval: 0.3)
+sub1.dispose()
+Thread.sleep(forTimeInterval: 0.3)
+sub2.dispose()
 ```
 
 will print ...
@@ -257,8 +255,8 @@ will print ...
 
 ```
 Subscribed
-Sub1:  0
 Subscribed
+Sub1:  0
 Sub2:  0
 Sub1:  1
 Sub2:  1
@@ -267,7 +265,6 @@ Sub2:  2
 Disposed
 Sub2:  3
 Sub2:  4
-Sub2:  5
 Disposed
 ```
 
@@ -276,15 +273,13 @@ Disposed
 # Share Replay
 
 ```swift
- let counter = pulse(0.1).shareReplay(1)
- let sub1 = counter.subscribeNext { print("Sub1:  \($0)") }
- let sub2 = counter.subscribeNext { print("Sub2:  \($0)") }
-
- NSThread.sleepForTimeInterval(0.3)
- sub1.dispose()
-
- NSThread.sleepForTimeInterval(0.3)
- sub2.dispose()
+let counter = interval(0.1).shareReplay(1)
+let sub1 = counter.subscribe(onNext: { print("Sub1:  \($0)") })
+let sub2 = counter.subscribe(onNext: { print("Sub2:  \($0)") })
+Thread.sleep(forTimeInterval: 0.3)
+sub1.dispose()
+Thread.sleep(forTimeInterval: 0.3)
+sub2.dispose()
 ```
 
 will print ...
@@ -304,7 +299,6 @@ Sub2:  2
 Sub2:  3
 Sub2:  4
 Sub2:  5
-Sub2:  6
 Disposed
 ```
 
@@ -324,57 +318,86 @@ Disposed
 
 ---
 
-# Observe on Scheduler
+# Observe On Scheduler
 
 ```swift
 sequence
     .observeOn(backgroundScheduler)
-    .map { n in
+    .map { _ in
         print("This is performed on backgroundScheduler")
     }
     .observeOn(MainScheduler.instance)
-    .map { n in
+    .map { _ in
         print("This is performed on the main thread")
     }
 ```
 
 ---
 
-# Examples
-
-See [Rx.playground](https://github.com/ReactiveX/RxSwift/tree/master/Rx.playground)
-
----
-
-# Testing
-
-TBD
-
----
-
-# Debugging
+# Observe On Scheduler
 
 ```swift
+let scheduler = SerialDispatchQueueScheduler(internalSerialQueueName:
+    "com.rewe-digital.rxswift.interval")
 let subscription = Observable<Int>.interval(0.3, scheduler: scheduler)
-    .debug("debugging ...")
     .map { "Simply \($0)"}
-    .subscribeNext { print($0) }
-NSThread.sleepForTimeInterval(1.0)
+    .subscribe(onNext: { print($0) })
+Thread.sleep(forTimeInterval: 1.0)
 subscription.dispose()
 ```
 
 will print
 
 ```
-2016-09-09 16:42:29.871: debugging ... -> subscribed
-2016-09-09 16:42:30.172: debugging ... -> Event Next(0)
 Simply 0
-2016-09-09 16:42:30.475: debugging ... -> Event Next(1)
 Simply 1
-2016-09-09 16:42:30.775: debugging ... -> Event Next(2)
+Simply 2
+```
+
+---
+
+# Debugging
+
+```swift
+let scheduler = SerialDispatchQueueScheduler(internalSerialQueueName:
+    "com.rewe-digital.rxswift.interval")
+let subscription = Observable<Int>.interval(0.3, scheduler: scheduler)
+    .debug("debugging ...")
+    .map { "Simply \($0)"}
+    .subscribe(onNext: { print($0) })
+Thread.sleep(forTimeInterval: 1.0)
+subscription.dispose()
+```
+
+---
+
+# Debugging
+
+will print
+
+```
+2016-09-09 16:42:29.871: debugging ... -> subscribed
+2016-09-09 16:42:30.172: debugging ... -> Event next(0)
+Simply 0
+2016-09-09 16:42:30.475: debugging ... -> Event next(1)
+Simply 1
+2016-09-09 16:42:30.775: debugging ... -> Event next(2)
 Simply 2
 2016-09-09 16:42:30.873: debugging ... -> disposed
 ```
+
+---
+
+# Testing
+
+*   [XCTestExpectation](https://developer.apple.com/reference/xctest/xctestexpectation)
+*   [RxTests](https://github.com/ReactiveX/RxSwift/blob/master/Documentation/UnitTests.md)
+
+---
+
+# RxSwift Examples
+
+See [Rx.playground](https://github.com/ReactiveX/RxSwift/tree/master/Rx.playground)
 
 ---
 
@@ -384,9 +407,9 @@ Simply 2
 
 # Units
 
-**Important properties when writing Cocoa/UIKit applications:**
+Important properties when writing Cocoa/UIKit applications:
 
-*   Subscribe on main scheduler (properties, events)
+*   Subscribe to properties, events on main thread
 *   Observe on main thread
 *   Share events
 *   Don't error out
@@ -408,15 +431,15 @@ Units[^6] are convenient wrapper around observables for writing UI code
 # Why Units?
 
 ```swift
-let results = query.rx_text
+let results = query.rx.text
     .throttle(0.3, scheduler: MainScheduler.instance)
     .flatMapLatest { fetchItems($0) }
 
 results.map { "\($0.count)" }
-    .bindTo(resultCount.rx_text)
+    .bindTo(resultCount.rx.text)
     .addDisposableTo(disposeBag)
 
-results.bindTo(tableView.rx_itemsWithCellIdentifier("Cell")) { (_, result, cell) in
+results.bindTo(tableView.rx.itemsWithCellIdentifier("Cell")) { (_, result, cell) in
         cell.textLabel?.text = "\(result)"
     }.addDisposableTo(disposeBag)
 ```
@@ -452,7 +475,7 @@ results.bindTo(tableView.rx.itemsWithCellIdentifier("Cell")) { (_, result, cell)
 
 ---
 
-# Driver
+# Therefore: Driver
 
 ```swift
 let results = query.rx.text.asDriver()
@@ -472,15 +495,18 @@ results.drive(tableView.rx.itemsWithCellIdentifier("Cell")) { (_, result, cell) 
 
 ---
 
-# Examples
+# RxCocoa Examples
 
 See [RxExample](https://github.com/ReactiveX/RxSwift/tree/master/RxExample)
 
 ---
 
-# What's new in RxSwift 3.0?
+# Other options
 
-See [the changelog](https://github.com/ReactiveX/RxSwift/blob/master/CHANGELOG.md).
+*   [ReactiveSwift](https://github.com/ReactiveCocoa/ReactiveSwift) + [ReactiveCocoa](https://github.com/ReactiveCocoa/ReactiveCocoa)
+*   [Interstellar](https://github.com/JensRavens/Interstellar)
+*   [FutureKit](https://github.com/FutureKit/FutureKit)
+    -   [AltConf Talk by Michael Gray](https://realm.io/news/altconf-michael-gray-futures-promises-gcd/)
 
 ---
 
@@ -494,4 +520,4 @@ Observable Sequences are Monads[^7]
 
 # Thank you![^8]
 
-[^8]: Slidedeck Sources on [GitHub](https://github.com/stefanscheidt/RxSwiftPresentation)
+[^8]: Slide deck sources on [GitHub](https://github.com/stefanscheidt/RxSwiftPresentation)
